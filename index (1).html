@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PicShare - Share Photos with Friends</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card-hover:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+        .upload-zone {
+            border: 3px dashed #667eea;
+            transition: all 0.3s ease;
+        }
+        .upload-zone:hover, .upload-zone.dragover {
+            border-color: #764ba2;
+            background: rgba(102, 126, 234, 0.1);
+        }
+        .image-card {
+            transition: all 0.3s ease;
+        }
+        .image-card:hover .overlay {
+            opacity: 1;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- Header -->
+    <header class="gradient-bg text-white shadow-lg sticky top-0 z-50">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <i class="fas fa-images text-3xl"></i>
+                    <h1 class="text-2xl font-bold">PicShare</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span class="bg-white/20 px-3 py-1 rounded-full text-sm">
+                        <i class="fas fa-cloud mr-1"></i> <span id="imageCount">0</span> Photos
+                    </span>
+                    <button onclick="showShareModal()" class="bg-white text-purple-600 px-4 py-2 rounded-full font-semibold hover:bg-gray-100 transition">
+                        <i class="fas fa-share-alt mr-2"></i>Share App
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8">
+        <!-- Upload Section -->
+        <div class="bg-white rounded-2xl shadow-xl p-8 mb-8 card-hover transition-all duration-300">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                <i class="fas fa-cloud-upload-alt text-purple-600 mr-3"></i>
+                Upload Photos
+            </h2>
+            
+            <div id="uploadZone" class="upload-zone rounded-xl p-12 text-center cursor-pointer" onclick="document.getElementById('fileInput').click()">
+                <input type="file" id="fileInput" class="hidden" accept="image/*" multiple onchange="handleFiles(this.files)">
+                <i class="fas fa-cloud-upload-alt text-6xl text-purple-400 mb-4"></i>
+                <p class="text-xl text-gray-600 mb-2">Drag & drop images here</p>
+                <p class="text-gray-400">or click to browse</p>
+                <p class="text-sm text-gray-400 mt-4">Supports: JPG, PNG, GIF (Max 5MB each)</p>
+            </div>
+
+            <!-- Upload Progress -->
+            <div id="uploadProgress" class="hidden mt-6">
+                <div class="flex items-center justify-center space-x-4">
+                    <div class="loader"></div>
+                    <span class="text-gray-600">Uploading...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gallery Section -->
+        <div class="bg-white rounded-2xl shadow-xl p-8">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-2xl font-bold text-gray-800 flex items-center">
+                    <i class="fas fa-photo-video text-purple-600 mr-3"></i>
+                    Shared Gallery
+                </h2>
+                <button onclick="refreshGallery()" class="text-purple-600 hover:text-purple-800 transition">
+                    <i class="fas fa-sync-alt mr-2"></i>Refresh
+                </button>
+            </div>
+
+            <!-- Empty State -->
+            <div id="emptyState" class="text-center py-16">
+                <i class="fas fa-images text-8xl text-gray-200 mb-6"></i>
+                <p class="text-xl text-gray-400">No photos yet</p>
+                <p class="text-gray-400">Upload some images to get started!</p>
+            </div>
+
+            <!-- Image Grid -->
+            <div id="imageGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 hidden">
+            </div>
+        </div>
+    </main>
+
+    <!-- Share Modal -->
+    <div id="shareModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-2xl p-8 max-w-md w-full mx-4 transform transition-all">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-bold text-gray-800">Share with Friends</h3>
+                <button onclick="closeShareModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <p class="text-gray-600 mb-6">Share this link with your friends so they can view and upload photos too!</p>
+            <div class="bg-gray-100 rounded-lg p-4 flex items-center space-x-3 mb-6">
+                <input type="text" id="shareLink" class="bg-transparent flex-1 outline-none text-gray-700" readonly>
+                <button onclick="copyLink()" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition">
+                    <i class="fas fa-copy"></i>
+                </button>
+            </div>
+            <div class="flex justify-center space-x-4">
+                <a id="whatsappShare" href="#" target="_blank" class="w-12 h-12 bg-green-500 text-white rounded-full flex items-center justify-center hover:bg-green-600 transition">
+                    <i class="fab fa-whatsapp text-xl"></i>
+                </a>
+                <a id="telegramShare" href="#" target="_blank" class="w-12 h-12 bg-blue-500 text-white rounded-full flex items-center justify-center hover:bg-blue-600 transition">
+                    <i class="fab fa-telegram text-xl"></i>
+                </a>
+                <a id="emailShare" href="#" class="w-12 h-12 bg-gray-600 text-white rounded-full flex items-center justify-center hover:bg-gray-700 transition">
+                    <i class="fas fa-envelope text-xl"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Image Preview Modal -->
+    <div id="previewModal" class="fixed inset-0 bg-black/90 flex items-center justify-center z-50 hidden">
+        <button onclick="closePreview()" class="absolute top-4 right-4 text-white text-3xl hover:text-gray-300">
+            <i class="fas fa-times"></i>
+        </button>
+        <img id="previewImage" class="max-w-full max-h-[90vh] rounded-lg" src="" alt="Preview">
+        <a id="downloadBtn" href="#" download class="absolute bottom-4 right-4 bg-white text-gray-800 px-6 py-3 rounded-full font-semibold hover:bg-gray-100 transition">
+            <i class="fas fa-download mr-2"></i>Download
+        </a>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-4 right-4 bg-gray-800 text-white px-6 py-3 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300">
+        <span id="toastMessage"></span>
+    </div>
+
+    <script>
+        // Storage key for shared images
+        const STORAGE_KEY = 'picshare_images';
+        
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', () => {
+            loadImages();
+            setupDragAndDrop();
+            setupShareLinks();
+        });
+
+        // Setup drag and drop
+        function setupDragAndDrop() {
+            const uploadZone = document.getElementById('uploadZone');
+            
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                uploadZone.addEventListener(eventName, preventDefaults, false);
+            });
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                uploadZone.addEventListener(eventName, () => {
+                    uploadZone.classList.add('dragover');
+                }, false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                uploadZone.addEventListener(eventName, () => {
+                    uploadZone.classList.remove('dragover');
+                }, false);
+            });
+
+            uploadZone.addEventListener('drop', (e) => {
+                const files = e.dataTransfer.files;
+                handleFiles(files);
+            }, false);
+        }
+
+        // Handle file upload
+        function handleFiles(files) {
+            const validFiles = Array.from(files).filter(file => {
+                if (!file.type.startsWith('image/')) {
+                    showToast('Please upload only image files');
+                    return false;
+                }
+                if (file.size > 5 * 1024 * 1024) {
+                    showToast('File too large. Max 5MB allowed');
+                    return false;
+                }
+                return true;
+            });
+
+            if (validFiles.length === 0) return;
+
+            document.getElementById('uploadProgress').classList.remove('hidden');
+
+            let processed = 0;
+            validFiles.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    saveImage({
+                        id: Date.now() + Math.random().toString(36).substr(2, 9),
+                        data: e.target.result,
+                        name: file.name,
+                        date: new Date().toISOString(),
+                        uploader: 'You'
+                    });
+                    processed++;
+                    if (processed === validFiles.length) {
+                        document.getElementById('uploadProgress').classList.add('hidden');
+                        loadImages();
+                        showToast(`${validFiles.length} image(s) uploaded successfully!`);
+                    }
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // Save image to storage
+        function saveImage(imageData) {
+            const images = getImages();
+            images.unshift(imageData);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(images));
+        }
+
+        // Get images from storage
+        function getImages() {
+            const data = localStorage.getItem(STORAGE_KEY);
+            return data ? JSON.parse(data) : [];
+        }
+
+        // Load and display images
+        function loadImages() {
+            const images = getImages();
+            const grid = document.getElementById('imageGrid');
+            const emptyState = document.getElementById('emptyState');
+            const imageCount = document.getElementById('imageCount');
+
+            imageCount.textContent = images.length;
+
+            if (images.length === 0) {
+                grid.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            grid.classList.remove('hidden');
+
+            grid.innerHTML = images.map(img => `
+                <div class="image-card relative rounded-xl overflow-hidden shadow-lg cursor-pointer fade-in" onclick="openPreview('${img.data}', '${img.name}')">
+                    <img src="${img.data}" alt="${img.name}" class="w-full h-48 object-cover">
+                    <div class="overlay absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 transition-opacity flex flex-col justify-end p-4">
+                        <p class="text-white font-semibold truncate">${img.name}</p>
+                        <p class="text-gray-300 text-sm">${formatDate(img.date)}</p>
+                    </div>
+                    <button onclick="event.stopPropagation(); deleteImage('${img.id}')" class="absolute top-2 right-2 bg-red-500 text-white w-8 h-8 rounded-full opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <i class="fas fa-trash text-sm"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        // Delete image
+        function deleteImage(id) {
+            if (!confirm('Delete this image?')) return;
+            const images = getImages().filter(img => img.id !== id);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(images));
+            loadImages();
+            showToast('Image deleted');
+        }
+
+        // Refresh gallery
+        function refreshGallery() {
+            loadImages();
+            showToast('Gallery refreshed');
+        }
+
+        // Format date
+        function formatDate(dateStr) {
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('en-US', { 
+                month: 'short', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        // Open image preview
+        function openPreview(src, name) {
+            const modal = document.getElementById('previewModal');
+            const img = document.getElementById('previewImage');
+            const downloadBtn = document.getElementById('downloadBtn');
+            
+            img.src = src;
+            downloadBtn.href = src;
+            downloadBtn.download = name;
+            modal.classList.remove('hidden');
+        }
+
+        // Close preview
+        function closePreview() {
+            document.getElementById('previewModal').classList.add('hidden');
+        }
+
+        // Show share modal
+        function showShareModal() {
+            document.getElementById('shareModal').classList.remove('hidden');
+        }
+
+        // Close share modal
+        function closeShareModal() {
+            document.getElementById('shareModal').classList.add('hidden');
+        }
+
+        // Setup share links
+        function setupShareLinks() {
+            const url = window.location.href;
+            document.getElementById('shareLink').value = url;
+            document.getElementById('whatsappShare').href = `https://wa.me/?text=Check%20out%20our%20shared%20photo%20gallery!%20${encodeURIComponent(url)}`;
+            document.getElementById('telegramShare').href = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=Check%20out%20our%20shared%20photo%20gallery!`;
+            document.getElementById('emailShare').href = `mailto:?subject=Join%20our%20Photo%20Gallery&body=Check%20out%20our%20shared%20photo%20gallery!%20${encodeURIComponent(url)}`;
+        }
+
+        // Copy link
+        function copyLink() {
+            const input = document.getElementById('shareLink');
+            input.select();
+            document.execCommand('copy');
+            showToast('Link copied to clipboard!');
+        }
+
+        // Show toast notification
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            toastMessage.textContent = message;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        // Close modals on escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closePreview();
+                closeShareModal();
+            }
+        });
+
+        // Close preview on background click
+        document.getElementById('previewModal').addEventListener('click', (e) => {
+            if (e.target.id === 'previewModal') {
+                closePreview();
+            }
+        });
+    </script>
+</body>
+</html>
